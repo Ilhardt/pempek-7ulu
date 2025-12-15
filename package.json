@@ -1,0 +1,12 @@
+{
+  "name": "pempek-7ulu",
+  "version": "1.0.0",
+  "scripts": {
+    "install:frontend": "cd frontend && npm install",
+    "install:backend": "cd backend && npm install",
+    "build:frontend": "cd frontend && npm run build",
+    "start:frontend": "cd frontend && npm start",
+    "start:backend": "cd backend && npm start",
+    "start": "npm run start:backend & npm run start:frontend"
+  }
+}
