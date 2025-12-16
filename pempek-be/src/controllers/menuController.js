@@ -1,16 +1,17 @@
-// PEMPEK-BE/src/controllers/menuController.js
-const db = require("../config/database");
+const supabase = require("../config/database");
 
 // Get all menu items (active only - for public/customer)
 exports.getAllMenu = async (req, res) => {
   try {
-    // PostgreSQL pakai TRUE instead of 1
-    const result = await db.query(
-      "SELECT id, name, price, stock, description, image, is_active, created_at, updated_at FROM menu_items WHERE is_active = TRUE ORDER BY id ASC"
-    );
+    const { data, error } = await supabase
+      .from('menu_items')
+      .select('id, name, price, stock, description, image, is_active, created_at, updated_at')
+      .eq('is_active', true)
+      .order('id', { ascending: true });
 
-    // PostgreSQL result ada di .rows
-    res.json(result.rows);
+    if (error) throw error;
+
+    res.json(data);
   } catch (error) {
     console.error("Error fetching menu:", error);
     res.status(500).json({
@@ -24,11 +25,14 @@ exports.getAllMenu = async (req, res) => {
 // Get ALL menu items including inactive (for admin)
 exports.getAllMenuAdmin = async (req, res) => {
   try {
-    const result = await db.query(
-      "SELECT id, name, price, stock, description, image, is_active, created_at, updated_at FROM menu_items ORDER BY id ASC"
-    );
+    const { data, error } = await supabase
+      .from('menu_items')
+      .select('id, name, price, stock, description, image, is_active, created_at, updated_at')
+      .order('id', { ascending: true });
 
-    res.json(result.rows);
+    if (error) throw error;
+
+    res.json(data);
   } catch (error) {
     console.error("Error fetching all menu:", error);
     res.status(500).json({
@@ -43,20 +47,24 @@ exports.getAllMenuAdmin = async (req, res) => {
 exports.getMenuById = async (req, res) => {
   try {
     const { id } = req.params;
-    // PostgreSQL pakai $1, $2 untuk parameters (bukan ?)
-    const result = await db.query(
-      "SELECT * FROM menu_items WHERE id = $1 AND is_active = TRUE",
-      [id]
-    );
+    
+    const { data, error } = await supabase
+      .from('menu_items')
+      .select('*')
+      .eq('id', id)
+      .eq('is_active', true)
+      .single();
 
-    if (result.rows.length === 0) {
+    if (error) throw error;
+
+    if (!data) {
       return res.status(404).json({
         success: false,
         error: "Menu item not found",
       });
     }
 
-    res.json(result.rows[0]);
+    res.json(data);
   } catch (error) {
     console.error("Error fetching menu item:", error);
     res.status(500).json({
@@ -72,7 +80,6 @@ exports.createMenu = async (req, res) => {
   try {
     const { name, price, stock, description, image } = req.body;
 
-    // Validation
     if (!name || !price || stock === undefined) {
       return res.status(400).json({
         success: false,
@@ -80,22 +87,25 @@ exports.createMenu = async (req, res) => {
       });
     }
 
-    // PostgreSQL pakai RETURNING untuk get inserted ID
-    const result = await db.query(
-      "INSERT INTO menu_items (name, price, stock, description, image, is_active) VALUES ($1, $2, $3, $4, $5, TRUE) RETURNING id",
-      [
+    const { data, error } = await supabase
+      .from('menu_items')
+      .insert([{
         name,
-        parseFloat(price),
-        parseInt(stock),
-        description || null,
-        image || null,
-      ]
-    );
+        price: parseFloat(price),
+        stock: parseInt(stock),
+        description: description || null,
+        image: image || null,
+        is_active: true
+      }])
+      .select()
+      .single();
+
+    if (error) throw error;
 
     res.status(201).json({
       success: true,
       message: "Menu item created successfully",
-      id: result.rows[0].id,
+      id: data.id,
     });
   } catch (error) {
     console.error("Error creating menu:", error);
@@ -113,7 +123,6 @@ exports.updateMenu = async (req, res) => {
     const { id } = req.params;
     const { name, price, stock, description, image, is_active } = req.body;
 
-    // Validation
     if (!name || !price || stock === undefined) {
       return res.status(400).json({
         success: false,
@@ -122,31 +131,26 @@ exports.updateMenu = async (req, res) => {
     }
 
     console.log("Updating product:", id, "with data:", {
-      name,
-      price,
-      stock,
-      description,
-      image,
-      is_active,
+      name, price, stock, description, image, is_active
     });
 
-    // PostgreSQL pakai NOW() dan $1, $2, etc
-    const result = await db.query(
-      "UPDATE menu_items SET name = $1, price = $2, stock = $3, description = $4, image = $5, is_active = $6, updated_at = NOW() WHERE id = $7",
-      [
+    const { data, error } = await supabase
+      .from('menu_items')
+      .update({
         name,
-        parseFloat(price),
-        parseInt(stock),
-        description || null,
-        image || null,
-        is_active !== undefined ? is_active : true,
-        id,
-      ]
-    );
+        price: parseFloat(price),
+        stock: parseInt(stock),
+        description: description || null,
+        image: image || null,
+        is_active: is_active !== undefined ? is_active : true,
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', id)
+      .select();
 
-    console.log("Update result:", result);
+    if (error) throw error;
 
-    if (result.rowCount === 0) {
+    if (!data || data.length === 0) {
       return res.status(404).json({
         success: false,
         error: "Menu item not found",
@@ -171,10 +175,15 @@ exports.deleteMenu = async (req, res) => {
   try {
     const { id } = req.params;
 
-    // Hard delete - benar-benar hapus dari database
-    const result = await db.query("DELETE FROM menu_items WHERE id = $1", [id]);
+    const { data, error } = await supabase
+      .from('menu_items')
+      .delete()
+      .eq('id', id)
+      .select();
 
-    if (result.rowCount === 0) {
+    if (error) throw error;
+
+    if (!data || data.length === 0) {
       return res.status(404).json({
         success: false,
         error: "Menu item not found",
