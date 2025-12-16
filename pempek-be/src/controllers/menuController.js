@@ -4,12 +4,13 @@ const db = require("../config/database");
 // Get all menu items (active only - for public/customer)
 exports.getAllMenu = async (req, res) => {
   try {
-    const [rows] = await db.query(
-      "SELECT id, name, price, stock, description, image, is_active, created_at, updated_at FROM menu_items WHERE is_active = 1 ORDER BY id ASC"
+    // PostgreSQL pakai TRUE instead of 1
+    const result = await db.query(
+      "SELECT id, name, price, stock, description, image, is_active, created_at, updated_at FROM menu_items WHERE is_active = TRUE ORDER BY id ASC"
     );
 
-    // Return langsung array untuk kompatibilitas dengan frontend
-    res.json(rows);
+    // PostgreSQL result ada di .rows
+    res.json(result.rows);
   } catch (error) {
     console.error("Error fetching menu:", error);
     res.status(500).json({
@@ -23,11 +24,11 @@ exports.getAllMenu = async (req, res) => {
 // Get ALL menu items including inactive (for admin)
 exports.getAllMenuAdmin = async (req, res) => {
   try {
-    const [rows] = await db.query(
+    const result = await db.query(
       "SELECT id, name, price, stock, description, image, is_active, created_at, updated_at FROM menu_items ORDER BY id ASC"
     );
 
-    res.json(rows);
+    res.json(result.rows);
   } catch (error) {
     console.error("Error fetching all menu:", error);
     res.status(500).json({
@@ -42,19 +43,20 @@ exports.getAllMenuAdmin = async (req, res) => {
 exports.getMenuById = async (req, res) => {
   try {
     const { id } = req.params;
-    const [rows] = await db.query(
-      "SELECT * FROM menu_items WHERE id = ? AND is_active = 1",
+    // PostgreSQL pakai $1, $2 untuk parameters (bukan ?)
+    const result = await db.query(
+      "SELECT * FROM menu_items WHERE id = $1 AND is_active = TRUE",
       [id]
     );
 
-    if (rows.length === 0) {
+    if (result.rows.length === 0) {
       return res.status(404).json({
         success: false,
         error: "Menu item not found",
       });
     }
 
-    res.json(rows[0]);
+    res.json(result.rows[0]);
   } catch (error) {
     console.error("Error fetching menu item:", error);
     res.status(500).json({
@@ -78,8 +80,9 @@ exports.createMenu = async (req, res) => {
       });
     }
 
-    const [result] = await db.query(
-      "INSERT INTO menu_items (name, price, stock, description, image, is_active) VALUES (?, ?, ?, ?, ?, 1)",
+    // PostgreSQL pakai RETURNING untuk get inserted ID
+    const result = await db.query(
+      "INSERT INTO menu_items (name, price, stock, description, image, is_active) VALUES ($1, $2, $3, $4, $5, TRUE) RETURNING id",
       [
         name,
         parseFloat(price),
@@ -92,7 +95,7 @@ exports.createMenu = async (req, res) => {
     res.status(201).json({
       success: true,
       message: "Menu item created successfully",
-      id: result.insertId,
+      id: result.rows[0].id,
     });
   } catch (error) {
     console.error("Error creating menu:", error);
@@ -127,22 +130,23 @@ exports.updateMenu = async (req, res) => {
       is_active,
     });
 
-    const [result] = await db.query(
-      "UPDATE menu_items SET name = ?, price = ?, stock = ?, description = ?, image = ?, is_active = ?, updated_at = NOW() WHERE id = ?",
+    // PostgreSQL pakai NOW() dan $1, $2, etc
+    const result = await db.query(
+      "UPDATE menu_items SET name = $1, price = $2, stock = $3, description = $4, image = $5, is_active = $6, updated_at = NOW() WHERE id = $7",
       [
         name,
         parseFloat(price),
         parseInt(stock),
         description || null,
         image || null,
-        is_active !== undefined ? is_active : 1,
+        is_active !== undefined ? is_active : true,
         id,
       ]
     );
 
     console.log("Update result:", result);
 
-    if (result.affectedRows === 0) {
+    if (result.rowCount === 0) {
       return res.status(404).json({
         success: false,
         error: "Menu item not found",
@@ -162,17 +166,15 @@ exports.updateMenu = async (req, res) => {
   }
 };
 
-// Delete menu item (Admin only) - Soft delete
+// Delete menu item (Admin only) - Hard delete
 exports.deleteMenu = async (req, res) => {
   try {
     const { id } = req.params;
 
     // Hard delete - benar-benar hapus dari database
-    const [result] = await db.query("DELETE FROM menu_items WHERE id = ?", [
-      id,
-    ]);
+    const result = await db.query("DELETE FROM menu_items WHERE id = $1", [id]);
 
-    if (result.affectedRows === 0) {
+    if (result.rowCount === 0) {
       return res.status(404).json({
         success: false,
         error: "Menu item not found",
