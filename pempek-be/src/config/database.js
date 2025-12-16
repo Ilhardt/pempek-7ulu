@@ -22,12 +22,4 @@ pool.connect((err, client, release) => {
   release();
 });
 
-// Helper function untuk compatibility dengan MySQL syntax
-// MySQL pakai [rows] = await db.query(), PostgreSQL pakai .rows
-pool.query = async function(text, params) {
-  const result = await this.query(text, params);
-  // Return format [rows] seperti MySQL untuk compatibility
-  return [result.rows, result];
-};
-
 module.exports = pool;
