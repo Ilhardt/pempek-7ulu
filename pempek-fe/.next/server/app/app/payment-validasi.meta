@@ -1,0 +1,17 @@
+{
+  "headers": {
+    "x-nextjs-stale-time": "300",
+    "x-nextjs-prerender": "1",
+    "x-next-cache-tags": "_N_T_/layout,_N_T_/app/layout,_N_T_/app/(customer)/layout,_N_T_/app/(customer)/payment-validasi/layout,_N_T_/app/(customer)/payment-validasi/page,_N_T_/app/payment-validasi"
+  },
+  "segmentPaths": [
+    "/_tree",
+    "/_full",
+    "/app/!KGN1c3RvbWVyKQ/payment-validasi/__PAGE__",
+    "/app/!KGN1c3RvbWVyKQ/payment-validasi",
+    "/app/!KGN1c3RvbWVyKQ",
+    "/app",
+    "/_index",
+    "/_head"
+  ]
+}

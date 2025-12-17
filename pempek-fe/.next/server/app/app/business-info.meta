@@ -1,0 +1,18 @@
+{
+  "headers": {
+    "x-nextjs-stale-time": "300",
+    "x-nextjs-prerender": "1",
+    "x-next-cache-tags": "_N_T_/layout,_N_T_/app/layout,_N_T_/app/(admin)/layout,_N_T_/app/(admin)/(dashboard)/layout,_N_T_/app/(admin)/(dashboard)/business-info/layout,_N_T_/app/(admin)/(dashboard)/business-info/page,_N_T_/app/business-info"
+  },
+  "segmentPaths": [
+    "/_tree",
+    "/_full",
+    "/app/!KGFkbWluKQ/!KGRhc2hib2FyZCk/business-info/__PAGE__",
+    "/app/!KGFkbWluKQ/!KGRhc2hib2FyZCk/business-info",
+    "/app/!KGFkbWluKQ/!KGRhc2hib2FyZCk",
+    "/app/!KGFkbWluKQ",
+    "/app",
+    "/_index",
+    "/_head"
+  ]
+}

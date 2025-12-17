@@ -1,0 +1,146 @@
+{
+  "version": 3,
+  "pages404": true,
+  "caseSensitive": false,
+  "basePath": "",
+  "redirects": [
+    {
+      "source": "/:path+/",
+      "destination": "/:path+",
+      "internal": true,
+      "priority": true,
+      "statusCode": 308,
+      "regex": "^(?:/((?:[^/]+?)(?:/(?:[^/]+?))*))/$"
+    }
+  ],
+  "headers": [],
+  "rewrites": {
+    "beforeFiles": [],
+    "afterFiles": [],
+    "fallback": []
+  },
+  "dynamicRoutes": [],
+  "staticRoutes": [
+    {
+      "page": "/_global-error",
+      "regex": "^/_global\\-error(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/_global\\-error(?:/)?$"
+    },
+    {
+      "page": "/_not-found",
+      "regex": "^/_not\\-found(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/_not\\-found(?:/)?$"
+    },
+    {
+      "page": "/app",
+      "regex": "^/app(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/app(?:/)?$"
+    },
+    {
+      "page": "/app/business-info",
+      "regex": "^/app/business\\-info(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/app/business\\-info(?:/)?$"
+    },
+    {
+      "page": "/app/cart",
+      "regex": "^/app/cart(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/app/cart(?:/)?$"
+    },
+    {
+      "page": "/app/dashboard",
+      "regex": "^/app/dashboard(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/app/dashboard(?:/)?$"
+    },
+    {
+      "page": "/app/kontak",
+      "regex": "^/app/kontak(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/app/kontak(?:/)?$"
+    },
+    {
+      "page": "/app/login",
+      "regex": "^/app/login(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/app/login(?:/)?$"
+    },
+    {
+      "page": "/app/menu",
+      "regex": "^/app/menu(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/app/menu(?:/)?$"
+    },
+    {
+      "page": "/app/my-orders",
+      "regex": "^/app/my\\-orders(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/app/my\\-orders(?:/)?$"
+    },
+    {
+      "page": "/app/order",
+      "regex": "^/app/order(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/app/order(?:/)?$"
+    },
+    {
+      "page": "/app/orders",
+      "regex": "^/app/orders(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/app/orders(?:/)?$"
+    },
+    {
+      "page": "/app/payment",
+      "regex": "^/app/payment(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/app/payment(?:/)?$"
+    },
+    {
+      "page": "/app/payment-confirmation",
+      "regex": "^/app/payment\\-confirmation(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/app/payment\\-confirmation(?:/)?$"
+    },
+    {
+      "page": "/app/payment-validasi",
+      "regex": "^/app/payment\\-validasi(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/app/payment\\-validasi(?:/)?$"
+    },
+    {
+      "page": "/app/products",
+      "regex": "^/app/products(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/app/products(?:/)?$"
+    },
+    {
+      "page": "/node_modules/color-convert",
+      "regex": "^/node_modules/color\\-convert(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/node_modules/color\\-convert(?:/)?$"
+    }
+  ],
+  "dataRoutes": [],
+  "rsc": {
+    "header": "rsc",
+    "varyHeader": "rsc, next-router-state-tree, next-router-prefetch, next-router-segment-prefetch",
+    "prefetchHeader": "next-router-prefetch",
+    "didPostponeHeader": "x-nextjs-postponed",
+    "contentTypeHeader": "text/x-component",
+    "suffix": ".rsc",
+    "prefetchSuffix": ".prefetch.rsc",
+    "prefetchSegmentHeader": "next-router-segment-prefetch",
+    "prefetchSegmentSuffix": ".segment.rsc",
+    "prefetchSegmentDirSuffix": ".segments",
+    "clientParamParsing": false,
+    "dynamicRSCPrerender": false
+  },
+  "rewriteHeaders": {
+    "pathHeader": "x-nextjs-rewritten-path",
+    "queryHeader": "x-nextjs-rewritten-query"
+  }
+}

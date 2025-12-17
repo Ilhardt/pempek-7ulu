@@ -1,0 +1,19 @@
+{
+  "/_global-error/page": "/_global-error",
+  "/_not-found/page": "/_not-found",
+  "/app/(admin)/(dashboard)/business-info/page": "/app/business-info",
+  "/app/(admin)/(dashboard)/dashboard/page": "/app/dashboard",
+  "/app/(admin)/(dashboard)/orders/page": "/app/orders",
+  "/app/(admin)/(dashboard)/payment-confirmation/page": "/app/payment-confirmation",
+  "/app/(admin)/(dashboard)/products/page": "/app/products",
+  "/app/(admin)/login/page": "/app/login",
+  "/app/(customer)/cart/page": "/app/cart",
+  "/app/(customer)/kontak/page": "/app/kontak",
+  "/app/(customer)/menu/page": "/app/menu",
+  "/app/(customer)/my-orders/page": "/app/my-orders",
+  "/app/(customer)/order/page": "/app/order",
+  "/app/(customer)/page": "/app",
+  "/app/(customer)/payment-validasi/page": "/app/payment-validasi",
+  "/app/(customer)/payment/page": "/app/payment",
+  "/node_modules/color-convert/route": "/node_modules/color-convert"
+}
