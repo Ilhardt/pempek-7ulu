@@ -1,12 +1,8 @@
-const db = require("../config/database");
+const supabase = require("../config/database");
 
 // Create new order - STOCK BELUM DIKURANGI (tunggu konfirmasi admin)
 exports.createOrder = async (req, res) => {
-  const connection = await db.getConnection();
-
   try {
-    await connection.beginTransaction();
-
     const {
       customer_name,
       customer_phone,
@@ -16,59 +12,75 @@ exports.createOrder = async (req, res) => {
       notes,
     } = req.body;
 
-    console.log('📦 Creating order with', items.length, 'items');
+    console.log("📦 Creating order with", items.length, "items");
 
     // ✅ HANYA VALIDASI stock cukup (BELUM dikurangi)
     for (const item of items) {
-      const [product] = await connection.query(
-        'SELECT id, name, stock FROM menu_items WHERE id = ?',
-        [item.menu_item_id]
-      );
+      const { data: product, error } = await supabase
+        .from("menu_items")
+        .select("id, name, stock")
+        .eq("id", item.menu_item_id)
+        .single();
 
-      if (product.length === 0) {
-        throw new Error(`Produk dengan ID ${item.menu_item_id} tidak ditemukan`);
+      if (error || !product) {
+        throw new Error(
+          `Produk dengan ID ${item.menu_item_id} tidak ditemukan`
+        );
       }
 
-      const currentStock = product[0].stock;
-      console.log(`📊 ${product[0].name}: Stock tersedia = ${currentStock}, Dipesan = ${item.quantity}`);
+      const currentStock = product.stock;
+      console.log(
+        `📊 ${product.name}: Stock tersedia = ${currentStock}, Dipesan = ${item.quantity}`
+      );
 
       // Validasi stock cukup
       if (currentStock < item.quantity) {
-        throw new Error(`Stock ${product[0].name} tidak cukup! Tersedia: ${currentStock}, Dipesan: ${item.quantity}`);
+        throw new Error(
+          `Stock ${product.name} tidak cukup! Tersedia: ${currentStock}, Dipesan: ${item.quantity}`
+        );
       }
 
-      console.log(`✅ ${product[0].name}: Stock cukup (belum dikurangi, menunggu konfirmasi admin)`);
-    }
-
-    // Insert order
-    const [orderResult] = await connection.query(
-      `INSERT INTO orders 
-       (customer_name, customer_phone, customer_address, total_price, notes, status) 
-       VALUES (?, ?, ?, ?, ?, 'pending')`,
-      [customer_name, customer_phone, customer_address, total_price, notes]
-    );
-
-    const orderId = orderResult.insertId;
-
-    // Insert order items
-    for (const item of items) {
-      await connection.query(
-        `INSERT INTO order_items 
-         (order_id, menu_item_id, quantity, price, notes) 
-         VALUES (?, ?, ?, ?, ?)`,
-        [
-          orderId,
-          item.menu_item_id,
-          item.quantity,
-          item.price,
-          item.notes || null,
-        ]
+      console.log(
+        `✅ ${product.name}: Stock cukup (belum dikurangi, menunggu konfirmasi admin)`
       );
     }
 
-    await connection.commit();
+    // Insert order
+    const { data: orderData, error: orderError } = await supabase
+      .from("orders")
+      .insert({
+        customer_name,
+        customer_phone,
+        customer_address,
+        total_price,
+        notes,
+        status: "pending",
+      })
+      .select()
+      .single();
 
-    console.log(`✅ Order #${orderId} created successfully (stock belum dikurangi)`);
+    if (orderError) throw orderError;
+
+    const orderId = orderData.id;
+
+    // Insert order items
+    const orderItems = items.map((item) => ({
+      order_id: orderId,
+      menu_item_id: item.menu_item_id,
+      quantity: item.quantity,
+      price: item.price,
+      notes: item.notes || null,
+    }));
+
+    const { error: itemsError } = await supabase
+      .from("order_items")
+      .insert(orderItems);
+
+    if (itemsError) throw itemsError;
+
+    console.log(
+      `✅ Order #${orderId} created successfully (stock belum dikurangi)`
+    );
 
     res.status(201).json({
       success: true,
@@ -76,32 +88,39 @@ exports.createOrder = async (req, res) => {
       data: { order_id: orderId },
     });
   } catch (error) {
-    await connection.rollback();
     console.error("❌ Error creating order:", error.message);
     res.status(500).json({
       success: false,
       error: error.message || "Failed to create order",
     });
-  } finally {
-    connection.release();
   }
 };
 
 // Get all orders (Admin)
 exports.getAllOrders = async (req, res) => {
   try {
-    const [orders] = await db.query(`
-      SELECT o.*, 
-             COUNT(oi.id) as item_count
-      FROM orders o
-      LEFT JOIN order_items oi ON o.id = oi.order_id
-      GROUP BY o.id
-      ORDER BY o.created_at DESC
-    `);
+    // Get all orders with item count
+    const { data: orders, error } = await supabase
+      .from("orders")
+      .select(
+        `
+        *,
+        order_items(count)
+      `
+      )
+      .order("created_at", { ascending: false });
+
+    if (error) throw error;
+
+    // Format response to match original structure
+    const formattedOrders = orders.map((order) => ({
+      ...order,
+      item_count: order.order_items?.[0]?.count || 0,
+    }));
 
     res.json({
       success: true,
-      data: orders,
+      data: formattedOrders,
     });
   } catch (error) {
     console.error("Error fetching orders:", error);
@@ -117,31 +136,40 @@ exports.getOrderById = async (req, res) => {
   try {
     const { id } = req.params;
 
-    // Get order details
-    const [orders] = await db.query("SELECT * FROM orders WHERE id = ?", [id]);
+    // Get order details with items
+    const { data: order, error: orderError } = await supabase
+      .from("orders")
+      .select(
+        `
+        *,
+        order_items(
+          *,
+          menu_items(name, image)
+        )
+      `
+      )
+      .eq("id", id)
+      .single();
 
-    if (orders.length === 0) {
+    if (orderError || !order) {
       return res.status(404).json({
         success: false,
         error: "Order not found",
       });
     }
 
-    // Get order items
-    const [items] = await db.query(
-      `
-      SELECT oi.*, mi.name as menu_name, mi.image
-      FROM order_items oi
-      JOIN menu_items mi ON oi.menu_item_id = mi.id
-      WHERE oi.order_id = ?
-    `,
-      [id]
-    );
+    // Format items to match original structure
+    const items =
+      order.order_items?.map((item) => ({
+        ...item,
+        menu_name: item.menu_items?.name,
+        image: item.menu_items?.image,
+      })) || [];
 
     res.json({
       success: true,
       data: {
-        ...orders[0],
+        ...order,
         items,
       },
     });
@@ -156,8 +184,6 @@ exports.getOrderById = async (req, res) => {
 
 // Update order status (Admin) - STOCK BERKURANG SAAT KONFIRMASI
 exports.updateOrderStatus = async (req, res) => {
-  const connection = await db.getConnection();
-
   try {
     const { id } = req.params;
     const { status } = req.body;
@@ -180,118 +206,139 @@ exports.updateOrderStatus = async (req, res) => {
     }
 
     // Get current order status
-    const [currentOrder] = await connection.query(
-      'SELECT status FROM orders WHERE id = ?',
-      [id]
-    );
+    const { data: currentOrder, error: orderError } = await supabase
+      .from("orders")
+      .select("status")
+      .eq("id", id)
+      .single();
 
-    if (currentOrder.length === 0) {
+    if (orderError || !currentOrder) {
       return res.status(404).json({
         success: false,
         error: "Order not found",
       });
     }
 
-    const oldStatus = currentOrder[0].status;
-
-    await connection.beginTransaction();
+    const oldStatus = currentOrder.status;
 
     // ✅ KURANGI STOCK saat admin KONFIRMASI pembayaran (pending → confirmed)
-    if (oldStatus === 'pending' && status === 'confirmed') {
+    if (oldStatus === "pending" && status === "confirmed") {
       console.log(`✅ Order #${id} DIKONFIRMASI - Mengurangi stock...`);
 
-      // Get order items
-      const [items] = await connection.query(
-        `SELECT oi.menu_item_id, oi.quantity, mi.name, mi.stock
-         FROM order_items oi
-         JOIN menu_items mi ON oi.menu_item_id = mi.id
-         WHERE oi.order_id = ?`,
-        [id]
-      );
+      // Get order items with menu details
+      const { data: items, error: itemsError } = await supabase
+        .from("order_items")
+        .select(
+          `
+          menu_item_id,
+          quantity,
+          menu_items(name, stock)
+        `
+        )
+        .eq("order_id", id);
+
+      if (itemsError) throw itemsError;
 
       // Validasi dan kurangi stock untuk setiap item
       for (const item of items) {
-        // Cek stock masih cukup (bisa saja sudah berkurang karena order lain)
-        if (item.stock < item.quantity) {
-          await connection.rollback();
+        const menuItem = item.menu_items;
+
+        // Cek stock masih cukup
+        if (menuItem.stock < item.quantity) {
           return res.status(400).json({
             success: false,
-            error: `Stock ${item.name} tidak cukup! Tersedia: ${item.stock}, Dibutuhkan: ${item.quantity}`,
+            error: `Stock ${menuItem.name} tidak cukup! Tersedia: ${menuItem.stock}, Dibutuhkan: ${item.quantity}`,
           });
         }
 
         // Kurangi stock
-        const [result] = await connection.query(
-          'UPDATE menu_items SET stock = stock - ? WHERE id = ?',
-          [item.quantity, item.menu_item_id]
-        );
+        const { error: updateError } = await supabase
+          .from("menu_items")
+          .update({ stock: menuItem.stock - item.quantity })
+          .eq("id", item.menu_item_id);
 
-        if (result.affectedRows > 0) {
-          console.log(`✅ Stock ${item.name} dikurangi: ${item.stock} → ${item.stock - item.quantity}`);
-        }
+        if (updateError) throw updateError;
+
+        console.log(
+          `✅ Stock ${menuItem.name} dikurangi: ${menuItem.stock} → ${
+            menuItem.stock - item.quantity
+          }`
+        );
       }
     }
 
-    // ✅ KEMBALIKAN STOCK jika admin TOLAK pembayaran (pending → cancelled)
-    // ATAU jika order yang sudah confirmed dibatalkan (confirmed → cancelled)
-    if (status === 'cancelled' && (oldStatus === 'confirmed' || oldStatus === 'processing' || oldStatus === 'ready')) {
+    // ✅ KEMBALIKAN STOCK jika order dibatalkan setelah confirmed
+    if (
+      status === "cancelled" &&
+      ["confirmed", "processing", "ready"].includes(oldStatus)
+    ) {
       console.log(`🔄 Order #${id} DIBATALKAN - Mengembalikan stock...`);
 
-      // Get order items
-      const [items] = await connection.query(
-        `SELECT oi.menu_item_id, oi.quantity, mi.name 
-         FROM order_items oi
-         JOIN menu_items mi ON oi.menu_item_id = mi.id
-         WHERE oi.order_id = ?`,
-        [id]
-      );
+      // Get order items with menu details
+      const { data: items, error: itemsError } = await supabase
+        .from("order_items")
+        .select(
+          `
+          menu_item_id,
+          quantity,
+          menu_items(name, stock)
+        `
+        )
+        .eq("order_id", id);
+
+      if (itemsError) throw itemsError;
 
       // Kembalikan stock untuk setiap item
       for (const item of items) {
-        const [result] = await connection.query(
-          'UPDATE menu_items SET stock = stock + ? WHERE id = ?',
-          [item.quantity, item.menu_item_id]
-        );
+        const menuItem = item.menu_items;
 
-        if (result.affectedRows > 0) {
-          console.log(`✅ Stock ${item.name} dikembalikan: +${item.quantity}`);
-        }
+        const { error: updateError } = await supabase
+          .from("menu_items")
+          .update({ stock: menuItem.stock + item.quantity })
+          .eq("id", item.menu_item_id);
+
+        if (updateError) throw updateError;
+
+        console.log(
+          `✅ Stock ${menuItem.name} dikembalikan: +${item.quantity}`
+        );
       }
     }
 
     // Jika cancel dari pending → cancelled, stock TIDAK perlu dikembalikan
-    // (karena belum pernah dikurangi)
-    if (status === 'cancelled' && oldStatus === 'pending') {
-      console.log(`ℹ️ Order #${id} DITOLAK dari pending - Stock tidak berubah (belum pernah dikurangi)`);
+    if (status === "cancelled" && oldStatus === "pending") {
+      console.log(
+        `ℹ️ Order #${id} DITOLAK dari pending - Stock tidak berubah (belum pernah dikurangi)`
+      );
     }
 
     // Update order status
-    const [result] = await connection.query(
-      "UPDATE orders SET status = ?, updated_at = NOW() WHERE id = ?",
-      [status, id]
-    );
+    const { error: updateError } = await supabase
+      .from("orders")
+      .update({
+        status,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", id);
 
-    await connection.commit();
+    if (updateError) throw updateError;
 
     console.log(`✅ Order #${id} status updated: ${oldStatus} → ${status}`);
 
     res.json({
       success: true,
       message: "Order status updated successfully",
-      data: { 
+      data: {
         old_status: oldStatus,
-        new_status: status 
+        new_status: status,
       },
     });
   } catch (error) {
-    await connection.rollback();
     console.error("Error updating order status:", error);
     res.status(500).json({
       success: false,
       error: "Failed to update order status",
     });
-  } finally {
-    connection.release();
   }
 };
 
@@ -336,18 +383,18 @@ exports.uploadPaymentProof = async (req, res) => {
     }
 
     console.log("🔄 Executing UPDATE query...");
-    const [result] = await db.query(
-      "UPDATE orders SET payment_proof = ?, updated_at = NOW() WHERE id = ?",
-      [payment_proof, id]
-    );
+    const { data, error } = await supabase
+      .from("orders")
+      .update({
+        payment_proof,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", id)
+      .select();
 
-    console.log("📋 Query result:", {
-      affectedRows: result.affectedRows,
-      changedRows: result.changedRows,
-      warningCount: result.warningCount,
-    });
+    if (error) throw error;
 
-    if (result.affectedRows === 0) {
+    if (!data || data.length === 0) {
       console.log("❌ No rows updated - Order not found");
       return res.status(404).json({
         success: false,
@@ -357,31 +404,24 @@ exports.uploadPaymentProof = async (req, res) => {
 
     // VERIFY: Cek apakah data benar-benar tersimpan
     console.log("✅ Verifying saved data...");
-    const [checkOrder] = await db.query(
-      "SELECT id, payment_proof IS NOT NULL as has_proof, LENGTH(payment_proof) as proof_length FROM orders WHERE id = ?",
-      [id]
-    );
+    const { data: checkOrder, error: checkError } = await supabase
+      .from("orders")
+      .select("id, payment_proof")
+      .eq("id", id)
+      .single();
 
-    if (checkOrder.length > 0) {
-      console.log("📊 Verification result:", {
-        order_id: checkOrder[0].id,
-        has_proof: checkOrder[0].has_proof,
-        proof_length: checkOrder[0].proof_length,
+    if (checkError) throw checkError;
+
+    if (!checkOrder.payment_proof) {
+      console.log("❌ CRITICAL: Data was NOT saved to database!");
+      return res.status(500).json({
+        success: false,
+        error: "Payment proof was not saved. Please contact admin.",
+        debug: {
+          has_proof: !!checkOrder.payment_proof,
+          hint: "Database column might be too small (use TEXT type)",
+        },
       });
-
-      if (!checkOrder[0].has_proof || checkOrder[0].proof_length === 0) {
-        console.log("❌ CRITICAL: Data was NOT saved to database!");
-        console.log("⚠️ Check if column type is LONGTEXT");
-        return res.status(500).json({
-          success: false,
-          error: "Payment proof was not saved. Please contact admin.",
-          debug: {
-            has_proof: checkOrder[0].has_proof,
-            proof_length: checkOrder[0].proof_length,
-            hint: "Database column might be too small (use LONGTEXT)",
-          },
-        });
-      }
     }
 
     console.log("✅ ===== UPLOAD PAYMENT PROOF SUCCESS =====");
@@ -397,18 +437,12 @@ exports.uploadPaymentProof = async (req, res) => {
     });
   } catch (error) {
     console.error("❌ ===== UPLOAD PAYMENT PROOF ERROR =====");
-    console.error("Error details:", {
-      message: error.message,
-      code: error.code,
-      errno: error.errno,
-      sqlMessage: error.sqlMessage,
-    });
+    console.error("Error details:", error);
 
     res.status(500).json({
       success: false,
       error: "Failed to upload payment proof",
       details: error.message,
-      sqlError: error.sqlMessage,
     });
   }
 };
@@ -427,35 +461,31 @@ exports.getOrdersByPhone = async (req, res) => {
       });
     }
 
-    // Get all orders untuk phone number ini
-    const [orders] = await db.query(
+    // Get all orders with item count
+    const { data: orders, error } = await supabase
+      .from("orders")
+      .select(
+        `
+        *,
+        order_items(count)
       `
-      SELECT 
-        o.id,
-        o.customer_name,
-        o.customer_phone,
-        o.customer_address,
-        o.total_price,
-        o.status,
-        o.notes,
-        o.payment_proof,
-        o.created_at,
-        o.updated_at,
-        COUNT(oi.id) as item_count
-      FROM orders o
-      LEFT JOIN order_items oi ON o.id = oi.order_id
-      WHERE o.customer_phone = ?
-      GROUP BY o.id
-      ORDER BY o.created_at DESC
-    `,
-      [phone]
-    );
+      )
+      .eq("customer_phone", phone)
+      .order("created_at", { ascending: false });
 
-    console.log("✅ Found", orders.length, "orders");
+    if (error) throw error;
+
+    // Format response
+    const formattedOrders = orders.map((order) => ({
+      ...order,
+      item_count: order.order_items?.[0]?.count || 0,
+    }));
+
+    console.log("✅ Found", formattedOrders.length, "orders");
 
     res.json({
       success: true,
-      data: orders,
+      data: formattedOrders,
     });
   } catch (error) {
     console.error("Error fetching orders by phone:", error);

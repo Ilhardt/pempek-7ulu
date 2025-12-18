@@ -1,7 +1,7 @@
 // src/routes/adminRoutes.js
 const express = require('express');
 const router = express.Router();
-const db = require('../config/database'); // promisePool
+const supabase = require('../config/database');
 const { authenticateToken, isAdmin } = require('../middleware/auth');
 
 // GET /api/admin/profile
@@ -11,26 +11,32 @@ router.get('/profile', authenticateToken, async (req, res) => {
     
     const userId = req.user.id;
     
-    // ✅ GUNAKAN ASYNC/AWAIT
-    const [results] = await db.query(
-      'SELECT id, username, role, created_at FROM users WHERE id = ? AND role = ?',
-      [userId, 'admin']
-    );
+    const { data, error } = await supabase
+      .from('users')
+      .select('id, username, role, created_at')
+      .eq('id', userId)
+      .eq('role', 'admin')
+      .single();
 
-    console.log('🔍 Query results:', results);
+    if (error) {
+      console.error('🔍 Query error:', error);
+      throw error;
+    }
 
-    if (!results || results.length === 0) {
+    console.log('🔍 Query results:', data);
+
+    if (!data) {
       return res.status(404).json({ 
         success: false,
         message: 'Admin not found' 
       });
     }
 
-    console.log('✅ Admin found:', results[0]);
+    console.log('✅ Admin found:', data);
 
     res.json({ 
       success: true, 
-      data: results[0]
+      data: data
     });
   } catch (error) {
     console.error('❌ Error fetching admin profile:', error);
@@ -45,19 +51,45 @@ router.get('/profile', authenticateToken, async (req, res) => {
 // GET /api/admin/stats
 router.get('/stats', authenticateToken, isAdmin, async (req, res) => {
   try {
-    // ✅ GUNAKAN ASYNC/AWAIT
-    const [[{ count: totalOrders }]] = await db.query('SELECT COUNT(*) as count FROM orders');
-    const [[{ count: pendingOrders }]] = await db.query('SELECT COUNT(*) as count FROM orders WHERE status = ?', ['pending']);
-    const [[{ total: totalRevenue }]] = await db.query('SELECT SUM(total_price) as total FROM orders WHERE status = ?', ['confirmed']);
-    const [[{ count: totalProducts }]] = await db.query('SELECT COUNT(*) as count FROM menu_items');
+    // Get total orders
+    const { count: totalOrders, error: e1 } = await supabase
+      .from('orders')
+      .select('*', { count: 'exact', head: true });
+    
+    if (e1) throw e1;
+
+    // Get pending orders
+    const { count: pendingOrders, error: e2 } = await supabase
+      .from('orders')
+      .select('*', { count: 'exact', head: true })
+      .eq('status', 'pending');
+    
+    if (e2) throw e2;
+
+    // Get total revenue (confirmed orders)
+    const { data: revenueData, error: e3 } = await supabase
+      .from('orders')
+      .select('total_price')
+      .eq('status', 'confirmed');
+    
+    if (e3) throw e3;
+
+    const totalRevenue = revenueData?.reduce((sum, order) => sum + (order.total_price || 0), 0) || 0;
+
+    // Get total products
+    const { count: totalProducts, error: e4 } = await supabase
+      .from('menu_items')
+      .select('*', { count: 'exact', head: true });
+    
+    if (e4) throw e4;
 
     res.json({
       success: true,
       data: {
-        totalOrders,
-        pendingOrders,
-        totalRevenue: totalRevenue || 0,
-        totalProducts
+        totalOrders: totalOrders || 0,
+        pendingOrders: pendingOrders || 0,
+        totalRevenue: totalRevenue,
+        totalProducts: totalProducts || 0
       }
     });
   } catch (error) {

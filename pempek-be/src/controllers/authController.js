@@ -1,6 +1,6 @@
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
-const db = require('../config/database');
+const supabase = require('../config/database');
 
 // Admin login
 exports.login = async (req, res) => {
@@ -8,12 +8,21 @@ exports.login = async (req, res) => {
     const { username, password } = req.body;
     
     // Get user from database
-    const [users] = await db.query(
-      'SELECT * FROM users WHERE username = ? AND role = "admin"',
-      [username]
-    );
+    const { data: users, error } = await supabase
+      .from('users')
+      .select('*')
+      .eq('username', username)
+      .eq('role', 'admin');
     
-    if (users.length === 0) {
+    if (error) {
+      console.error('Database error:', error);
+      return res.status(500).json({
+        success: false,
+        error: 'Database error'
+      });
+    }
+    
+    if (!users || users.length === 0) {
       return res.status(401).json({
         success: false,
         error: 'Invalid credentials'
